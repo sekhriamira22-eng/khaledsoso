@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏭 نظام الإنتاج — لوحة المراقبة</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #16213e, #0f3460);
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .header h1 { font-size: 2em; margin-bottom: 10px; }
+        .header p { color: #90CAF9; font-size: 0.9em; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .card {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            border-right: 4px solid #0f3460;
+        }
+        .card h3 {
+            color: #64B5F6;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+        .card .value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #4CAF50;
+            text-align: center;
+            padding: 10px;
+        }
+        .card .label {
+            text-align: center;
+            color: #90A4AE;
+            font-size: 0.9em;
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-left: 8px;
+            animation: pulse 2s infinite;
+        }
+        .status-dot.green { background: #4CAF50; }
+        .status-dot.red { background: #f44336; }
+        .status-dot.orange { background: #FF9800; }
+        .status-dot.gray { background: #757575; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        #log-container {
+            background: #0d1117;
+            border-radius: 12px;
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            line-height: 1.6;
+            border: 1px solid #30363d;
+        }
+        .log-entry {
+            padding: 3px 0;
+            border-bottom: 1px solid #21262d;
+        }
+        .log-time { color: #8b949e; }
+        .log-type { color: #58a6ff; font-weight: bold; }
+        .log-data { color: #c9d1d9; }
+
+        .machine-status {
+            font-size: 1.5em;
+            padding: 15px;
+            text-align: center;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+        .machine-START { background: #1B5E20; color: #A5D6A7; }
+        .machine-STOP { background: #B71C1C; color: #EF9A9A; }
+        .machine-PAUSE { background: #E65100; color: #FFCC80; }
+        .machine-UNKNOWN { background: #37474F; color: #B0BEC5; }
+
+        .buffer-bar {
+            background: #263238;
+            border-radius: 8px;
+            padding: 10px 15px;
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .buffer-bar span { color: #B0BEC5; }
+        .buffer-bar .count { color: #4CAF50; font-weight: bold; font-size: 1.2em; }
+
+        button {
+            background: #0f3460;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            margin: 5px;
+            transition: background 0.3s;
+        }
+        button:hover { background: #1a5276; }
+        .btn-danger { background: #c0392b; }
+        .btn-danger:hover { background: #e74c3c; }
+        .btn-success { background: #27ae60; }
+        .btn-success:hover { background: #2ecc71; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🏭 نظام الإنتاج PRO MAX v4.0</h1>
+    <p>لوحة المراقبة المباشرة — Buffer + ACK + مزامنة تلقائية</p>
+    <p id="server-time" style="margin-top: 8px; color: #64B5F6;"></p>
+</div>
+
+<div class="grid">
+    <!-- حالة الاتصال -->
+    <div class="card">
+        <h3>📡 حالة الاتصال</h3>
+        <div style="text-align: center;">
+            <span class="status-dot gray" id="conn-dot"></span>
+            <span id="conn-status" style="font-size: 1.3em;">جاري الاتصال...</span>
+        </div>
+        <div class="label" id="conn-transport" style="margin-top: 10px;">—</div>
+    </div>
+
+    <!-- الأجهزة المتصلة -->
+    <div class="card">
+        <h3>👥 الأجهزة المتصلة</h3>
+        <div class="value" id="clients-count">0</div>
+        <div class="label">جهاز متصل</div>
+    </div>
+
+    <!-- حالة الآلة -->
+    <div class="card">
+        <h3>⚙️ حالة الآلة</h3>
+        <div class="machine-status machine-UNKNOWN" id="machine-status">
+            ❓ غير معروفة
+        </div>
+    </div>
+
+    <!-- Buffer -->
+    <div class="card">
+        <h3>📦 Buffer السيرفر</h3>
+        <div class="value" id="buffer-count">0</div>
+        <div class="label">رسالة محفوظة</div>
+        <div class="buffer-bar">
+            <span>آخر SEQ:</span>
+            <span class="count" id="last-seq">0</span>
+        </div>
+    </div>
+</div>
+
+<!-- آخر البيانات -->
+<div class="card" style="margin-bottom: 15px;">
+    <h3>📋 آخر البيانات المستلمة</h3>
+    <div class="grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div>
+            <div class="label">الخياط</div>
+            <div id="last-tailor" style="font-size: 1.3em; text-align: center; padding: 8px;">---</div>
+        </div>
+        <div>
+            <div class="label">الطرزة</div>
+            <div id="last-embroidery" style="font-size: 1.3em; text-align: center; padding: 8px;">---</div>
+        </div>
+        <div>
+            <div class="label">رقم الفيشة</div>
+            <div id="last-ficha" style="font-size: 1.3em; text-align: center; padding: 8px;">---</div>
+        </div>
+    </div>
+</div>
+
+<!-- أزرار التحكم -->
+<div style="text-align: center; margin-bottom: 15px;">
+    <button onclick="refreshHealth()" class="btn-success">🔄 تحديث</button>
+    <button onclick="clearLog()">🗑️ مسح السجل</button>
+    <button onclick="testConnection()" style="background: #8e44ad;">🧪 اختبار الاتصال</button>
+</div>
+
+<!-- سجل الأحداث -->
+<div class="card">
+    <h3>📡 سجل الأحداث المباشرة (<span id="log-count">0</span> حدث)</h3>
+    <div id="log-container"></div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    const socket = io();
+    let logCount = 0;
+    const logContainer = document.getElementById('log-container');
+
+    function addLog(type, data) {
+        logCount++;
+        document.getElementById('log-count').textContent = logCount;
+
+        const time = new Date().toLocaleTimeString('ar-EG');
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+
+        let dataStr = typeof data === 'object' ? JSON.stringify(data).substring(0, 150) : String(data);
+        entry.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-type">${type}</span> <span class="log-data">${dataStr}</span>`;
+
+        logContainer.insertBefore(entry, logContainer.firstChild);
+
+        // حذف القديم
+        while (logContainer.children.length > 200) {
+            logContainer.removeChild(logContainer.lastChild);
+        }
+    }
+
+    function updateMachineStatus(status) {
+        const el = document.getElementById('machine-status');
+        const statusMap = {
+            'START': { text: '▶ تعمل', class: 'machine-START' },
+            'STOP': { text: '⏹ متوقفة', class: 'machine-STOP' },
+            'PAUSE': { text: '⏸ إيقاف مؤقت', class: 'machine-PAUSE' },
+            'UNKNOWN': { text: '❓ غير معروفة', class: 'machine-UNKNOWN' }
+        };
+        const s = statusMap[status] || statusMap['UNKNOWN'];
+        el.textContent = s.text;
+        el.className = 'machine-status ' + s.class;
+    }
+
+    // ═══════════════════════════════════════
+    // أحداث Socket.IO
+    // ═══════════════════════════════════════
+    socket.on('connect', () => {
+        document.getElementById('conn-dot').className = 'status-dot green';
+        document.getElementById('conn-status').textContent = 'متصل ✅';
+        document.getElementById('conn-transport').textContent = 'Transport: ' + (socket.io.engine.transport.name || '?');
+        addLog('🟢 connect', 'تم الاتصال بالسيرفر');
+        refreshHealth();
+    });
+
+    socket.on('disconnect', () => {
+        document.getElementById('conn-dot').className = 'status-dot red';
+        document.getElementById('conn-status').textContent = 'غير متصل ❌';
+        addLog('🔴 disconnect', 'انقطع الاتصال');
+    });
+
+    socket.on('welcome', (data) => {
+        addLog('👋 welcome', data);
+        if (data.status) updateMachineStatus(data.status);
+        if (data.last_seq) document.getElementById('last-seq').textContent = data.last_seq;
+        if (data.buffer_size !== undefined) document.getElementById('buffer-count').textContent = data.buffer_size;
+        if (data.details) {
+            if (data.details.tailor) document.getElementById('last-tailor').textContent = data.details.tailor;
+            if (data.details.color) document.getElementById('last-embroidery').textContent = data.details.color;
+            if (data.details.ficha_id) document.getElementById('last-ficha').textContent = '#' + data.details.ficha_id;
+        }
+    });
+
+    socket.on('update_ui', (data) => {
+        addLog('🖥️ update_ui', data);
+        if (data.status) updateMachineStatus(data.status);
+        if (data.seq) document.getElementById('last-seq').textContent = data.seq;
+        if (data.details) {
+            if (data.details.tailor) document.getElementById('last-tailor').textContent = data.details.tailor;
+            if (data.details.color) document.getElementById('last-embroidery').textContent = data.details.color;
+            if (data.details.ficha_id) document.getElementById('last-ficha').textContent = '#' + data.details.ficha_id;
+        }
+    });
+
+    socket.on('machine_status', (data) => {
+        addLog('⚙️ machine_status', data);
+        if (data.status) updateMachineStatus(data.status);
+    });
+
+    socket.on('data_changed', (data) => {
+        addLog('📡 data_changed', data);
+        refreshHealth();
+    });
+
+    socket.on('ficha_saved', (data) => { addLog('📋 ficha_saved', data); refreshHealth(); });
+    socket.on('ficha_deleted', (data) => { addLog('🗑️ ficha_deleted', data); refreshHealth(); });
+    socket.on('production_saved', (data) => { addLog('🧺 production_saved', data); refreshHealth(); });
+    socket.on('production_deleted', (data) => { addLog('🗑️ production_deleted', data); refreshHealth(); });
+    socket.on('speed_update', (data) => { addLog('🏎️ speed_update', data); });
+    socket.on('technical_data', (data) => { addLog('🔧 technical_data', data); });
+    socket.on('coordinates_batch', (data) => { addLog('📍 coordinates_batch', data); });
+    socket.on('head_command', (data) => { addLog('🎯 head_command', data); });
+
+    // ═══════════════════════════════════════
+    // تحديث الصحة
+    // ═══════════════════════════════════════
+    async function refreshHealth() {
+        try {
+            const resp = await fetch('/health');
+            const data = await resp.json();
+            document.getElementById('clients-count').textContent = data.clients || 0;
+            document.getElementById('buffer-count').textContent = data.bufferSize || 0;
+            document.getElementById('last-seq').textContent = data.lastSeq || 0;
+            if (data.machineStatus) updateMachineStatus(data.machineStatus);
+            if (data.lastData) {
+                if (data.lastData.tailor) document.getElementById('last-tailor').textContent = data.lastData.tailor;
+                if (data.lastData.color) document.getElementById('last-embroidery').textContent = data.lastData.color;
+                if (data.lastData.ficha_id) document.getElementById('last-ficha').textContent = '#' + data.lastData.ficha_id;
+            }
+        } catch (e) {
+            console.error('فشل التحديث:', e);
+        }
+    }
+
+    function clearLog() {
+        logContainer.innerHTML = '';
+        logCount = 0;
+        document.getElementById('log-count').textContent = 0;
+    }
+
+    async function testConnection() {
+        addLog('🧪 test', 'اختبار الاتصال...');
+        try {
+            const resp = await fetch('/health');
+            const data = await resp.json();
+            addLog('✅ test', `السيرفر يعمل | ${data.clients} جهاز | Buffer: ${data.bufferSize} | SEQ: ${data.lastSeq}`);
+        } catch (e) {
+            addLog('❌ test', 'فشل الاتصال: ' + e.message);
+        }
+    }
+
+    // تحديث الوقت
+    setInterval(() => {
+        document.getElementById('server-time').textContent = '🕐 ' + new Date().toLocaleString('ar-EG');
+    }, 1000);
+
+    // تحديث تلقائي كل 10 ثوانٍ
+    setInterval(refreshHealth, 10000);
+
+    // أول تحديث
+    refreshHealth();
+</script>
+
+</body>
+</html>
