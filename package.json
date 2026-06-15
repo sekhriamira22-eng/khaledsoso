@@ -1,0 +1,17 @@
+{
+  "name": "production-sync-server",
+  "version": "18.0.0",
+  "description": "V18-FULL: Socket.IO + PostgreSQL sync server (UUID/Hash/SEQ, ACK/NACK, Dead Letter, Daily Basket, Full Reconcile RX<->TX)",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5",
+    "pg": "^8.12.0"
+  }
+}
